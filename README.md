@@ -10,6 +10,7 @@ A modern full-stack web application built with React and Express.js, containeriz
 - [Prerequisites](#prerequisites)
 - [Installation & Setup](#installation--setup)
 - [Running the Project](#running-the-project)
+- [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup)
 - [API Endpoints](#api-endpoints)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
@@ -21,8 +22,9 @@ This is a full-stack web application demonstrating a modern development setup wi
 - **Backend**: RESTful API built with Express.js
 - **Infrastructure**: Docker containerization with Docker Compose
 - **Web Server**: Nginx reverse proxy for serving static files and routing API requests
+- **Internet Access**: Cloudflare Tunnel for exposing local services to the internet securely
 
-The application showcases a clean separation between frontend and backend, with the frontend making API calls to the backend through a reverse proxy.
+The application showcases a clean separation between frontend and backend, with the frontend making API calls to the backend through a reverse proxy. The application can be accessed locally or exposed to the internet using Cloudflare Tunnel.
 
 ## 🛠 Technologies Used
 
@@ -41,6 +43,7 @@ The application showcases a clean separation between frontend and backend, with 
 - **Docker Compose** - Multi-container Docker application orchestration
 - **Nginx** - Web server and reverse proxy
 - **Alpine Linux** - Lightweight Linux distribution for Docker images
+- **Cloudflare Tunnel** (cloudflared) - Secure tunnel for exposing local services to the internet
 
 ## 📁 Project Structure
 
@@ -85,6 +88,11 @@ Before you begin, ensure you have the following installed on your system:
 4. **npm** (v9 or higher) - *Optional, for local development*
    - Usually comes with Node.js
    - Verify installation: `npm --version`
+
+5. **Cloudflare Tunnel (cloudflared)** - *Optional, for internet access*
+   - Download from: [https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/)
+   - Verify installation: `cloudflared --version`
+   - Requires a Cloudflare account (free tier available)
 
 ## 🚀 Installation & Setup
 
@@ -215,6 +223,214 @@ npm start
 The frontend will run on `http://localhost:3000` (default React port)
 
 **Note**: For local development, you may need to configure the frontend to proxy API requests to the backend, or update the API endpoint URLs in the frontend code.
+
+## 🌐 Cloudflare Tunnel Setup
+
+Cloudflare Tunnel (formerly Argo Tunnel) allows you to expose your local application to the internet securely without opening ports on your router or exposing your IP address. This is particularly useful for:
+- Sharing your application with others
+- Testing webhooks and integrations
+- Accessing your app from anywhere
+- Secure access without exposing your local network
+
+### Prerequisites for Cloudflare Tunnel
+
+1. **Cloudflare Account**: Sign up for a free account at [https://dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up)
+
+2. **Domain**: You need a domain managed by Cloudflare (or add your domain to Cloudflare)
+
+3. **Install cloudflared**: Download and install the Cloudflare Tunnel client
+   - **Windows**: Download from [Cloudflare Downloads](https://github.com/cloudflare/cloudflared/releases)
+   - **macOS**: `brew install cloudflared`
+   - **Linux**: Follow instructions at [Cloudflare Documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/)
+
+### Quick Start with Cloudflare Tunnel
+
+#### Method 1: Quick Tunnel (Temporary URL)
+
+This creates a temporary public URL that works immediately:
+
+1. **Start your application** (make sure it's running on `localhost:8000`):
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Create a quick tunnel**:
+   ```bash
+   cloudflared tunnel --url http://localhost:8000
+   ```
+
+3. **Copy the generated URL** (e.g., `https://random-name.trycloudflare.com`) and share it with others.
+
+**Note**: Quick tunnels are temporary and will stop when you close the terminal.
+
+#### Method 2: Named Tunnel (Permanent Setup)
+
+This creates a permanent tunnel with your own domain:
+
+1. **Authenticate with Cloudflare**:
+   ```bash
+   cloudflared tunnel login
+   ```
+   This will open your browser to authorize the tunnel.
+
+2. **Create a named tunnel**:
+   ```bash
+   cloudflared tunnel create my-app-tunnel
+   ```
+   Replace `my-app-tunnel` with your preferred tunnel name.
+
+3. **Create a configuration file** (`config.yml` in your project root):
+   ```yaml
+   tunnel: my-app-tunnel
+   credentials-file: C:\Users\Computer 6\.cloudflared\<tunnel-id>.json
+   
+   ingress:
+     - hostname: docker.renzsiguenza.space
+       service: http://localhost:8000
+     - service: http_status:404
+   ```
+   **Note**: Update the `hostname` to match your domain and adjust the `credentials-file` path based on your system.
+
+4. **Create DNS record**:
+   ```bash
+   cloudflared tunnel route dns my-app-tunnel docker.renzsiguenza.space
+   ```
+   Or manually create a CNAME record in Cloudflare DNS:
+   - Type: `CNAME`
+   - Name: `docker` (or your subdomain)
+   - Target: `<tunnel-id>.cfargotunnel.com`
+   - Proxy status: Proxied (orange cloud)
+
+5. **Run the tunnel**:
+   ```bash
+   cloudflared tunnel run my-app-tunnel
+   ```
+
+6. **Access your application**: Visit `https://docker.renzsiguenza.space` (or your configured domain)
+
+### Running Tunnel as a Service (Windows)
+
+To run Cloudflare Tunnel automatically in the background:
+
+1. **Install as a service**:
+   ```bash
+   cloudflared service install
+   ```
+
+2. **Start the service**:
+   ```bash
+   cloudflared service start
+   ```
+
+3. **Check service status**:
+   ```bash
+   cloudflared service status
+   ```
+
+### Configuration File Location
+
+The configuration file is typically located at:
+- **Windows**: `C:\Users\<username>\.cloudflared\config.yml`
+- **macOS/Linux**: `~/.cloudflared/config.yml`
+
+### Cloudflare Tunnel Directory Structure
+
+After setting up Cloudflare Tunnel, you'll find the following files in your `.cloudflared` directory (typically located at `C:\Users\<username>\.cloudflared` on Windows):
+
+```
+.cloudflared/
+├── cloudflared.exe          # Cloudflare Tunnel executable
+├── config.yml               # Tunnel configuration file
+├── cert.pem                 # Certificate file for authentication
+└── <tunnel-id>.json         # Tunnel credentials file (UUID format)
+```
+
+**File Descriptions:**
+
+1. **`cloudflared.exe`** (~67 MB)
+   - The Cloudflare Tunnel client executable
+   - Used to create, manage, and run tunnels
+   - Can be run directly or installed as a Windows service
+
+2. **`config.yml`** (~1 KB)
+   - Main configuration file for your tunnel
+   - Contains tunnel name, credentials file path, and ingress rules
+   - Defines which local services are exposed and their hostnames
+
+3. **`cert.pem`** (~1 KB)
+   - Certificate file used for authenticating with Cloudflare
+   - Generated when you run `cloudflared tunnel login`
+   - Required for tunnel authentication
+
+4. **`<tunnel-id>.json`** (~1 KB)
+   - Tunnel credentials file with a UUID format (e.g., `4064117e-e580-4d4a-9231-e52ae08b4c8f.json`)
+   - Contains unique tunnel identifier and authentication tokens
+   - Referenced in `config.yml` as the `credentials-file`
+   - **Important**: Keep this file secure and never commit it to version control
+
+**Example `config.yml` structure:**
+```yaml
+tunnel: my-app-tunnel
+credentials-file: C:\Users\Computer 6\.cloudflared\4064117e-e580-4d4a-9231-e52ae08b4c8f.json
+
+ingress:
+  - hostname: docker.renzsiguenza.space
+    service: http://localhost:8000
+  - service: http_status:404
+```
+
+**Security Note:** 
+- Never share or commit the `.json` credentials file or `cert.pem` to public repositories
+- These files contain sensitive authentication information
+- Add `.cloudflared/` to your `.gitignore` file if storing tunnel configs in your project
+
+### Tunnel Management Commands
+
+**List all tunnels:**
+```bash
+cloudflared tunnel list
+```
+
+**Delete a tunnel:**
+```bash
+cloudflared tunnel delete my-app-tunnel
+```
+
+**View tunnel info:**
+```bash
+cloudflared tunnel info my-app-tunnel
+```
+
+**Route DNS for a tunnel:**
+```bash
+cloudflared tunnel route dns my-app-tunnel docker.renzsiguenza.space
+```
+
+### Important Notes
+
+- **Security**: Cloudflare Tunnel provides encryption and DDoS protection automatically
+- **No Port Forwarding**: You don't need to open ports on your router
+- **Free Tier**: Cloudflare Tunnel is free for personal use
+- **HTTPS**: All connections are automatically secured with HTTPS
+- **Performance**: Traffic is routed through Cloudflare's global network
+- **Domain Required**: For permanent setup, you need a domain managed by Cloudflare
+
+### Troubleshooting Cloudflare Tunnel
+
+**Tunnel not connecting:**
+- Verify your application is running on `localhost:8000`
+- Check that the tunnel service is running: `cloudflared tunnel list`
+- Review tunnel logs for errors
+
+**DNS not resolving:**
+- Ensure DNS record is set to "Proxied" (orange cloud) in Cloudflare dashboard
+- Wait a few minutes for DNS propagation
+- Verify the CNAME target matches your tunnel ID
+
+**Connection refused:**
+- Confirm your local application is accessible at `http://localhost:8000`
+- Check firewall settings
+- Verify the service URL in your tunnel configuration
 
 ## 🔌 API Endpoints
 
@@ -360,6 +576,8 @@ docker-compose up --build
 - The frontend is built as a static site and served by Nginx
 - All services communicate through a Docker bridge network (`app-network`)
 - The backend runs in production mode when using Docker Compose
+- Cloudflare Tunnel allows secure internet access without exposing your local network or IP address
+- The Nginx configuration includes a server name (`docker.renzsiguenza.space`) that matches the Cloudflare Tunnel domain
 
 ## 🤝 Contributing
 
